@@ -1,12 +1,18 @@
 "use client";
 
-import { supabase } from "@/lib/supabase";
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "@/lib/useSession";
 
 export default function Home() {
-  useEffect(() => {
-    supabase.auth.getSession().then(console.log);
-  }, []);
+  const router = useRouter();
+  const { session, loading } = useSession();
 
-  return <h1>Supabase connecté</h1>;
+  useEffect(() => {
+    if (!loading) {
+      router.replace(session ? "/dashboard" : "/login");
+    }
+  }, [session, loading, router]);
+
+  return <p>Chargement…</p>;
 }
