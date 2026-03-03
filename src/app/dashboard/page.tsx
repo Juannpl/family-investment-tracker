@@ -1,31 +1,21 @@
 // app/dashboard/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/lib/useSession";
-import { supabase } from "@/lib/supabase";
+import { useTheme } from "@/lib/useTheme";
 import AddContributionForm from "@/components/AddContributionForm";
 import ContributionHistory from "@/components/ContributionHistory";
+import { createClient } from "@/lib/supabase/client";
+
+const supabase = createClient();
 
 export default function DashboardPage() {
   const router = useRouter();
   const { session, loading } = useSession();
-  const [darkMode, setDarkMode] = useState(false);
+  const { darkMode, toggleDarkMode } = useTheme();
   const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    const saved = localStorage.getItem("theme");
-    setDarkMode(saved ? saved === "dark" : prefersDark);
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
-    localStorage.setItem("theme", darkMode ? "dark" : "light");
-  }, [darkMode]);
 
   const handleContributionAdded = () => {
     setRefreshKey((k) => k + 1);
@@ -78,7 +68,7 @@ export default function DashboardPage() {
               </span>
 
               <button
-                onClick={() => setDarkMode(!darkMode)}
+                onClick={toggleDarkMode}
                 className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 aria-label="Toggle theme"
               >

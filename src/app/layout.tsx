@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import CookieBanner from "@/components/CookieBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: " FIT - Family Investment Tracker",
+  title: "FIT - Family Investment Tracker",
   description:
-    "Application web privée pour le suivi des investissements familiaux. Permet d’enregistrer les contributions, conserver un historique complet, et visualiser la répartition et l’évolution du capital familial via des graphiques. Stack : Next.js, Supabase, PostgreSQL, Chart.js.",
+    "Application web privée pour le suivi des investissements familiaux.",
 };
 
 export default function RootLayout({
@@ -29,6 +30,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        <CookieBanner />
       </body>
     </html>
   );

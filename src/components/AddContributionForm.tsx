@@ -1,8 +1,30 @@
-// components/AddContributionForm.tsx
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+import {
+  CalendarIcon,
+  Loader2,
+  Plus,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
+
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+
+const supabase = createClient();
 
 interface Props {
   onSuccess?: () => void;
@@ -10,13 +32,13 @@ interface Props {
 
 export default function AddContributionForm({ onSuccess }: Props) {
   const [amount, setAmount] = useState("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState<Date | undefined>(undefined);
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
+  const handleSubmit: React.SubmitEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
     setError(null);
     setSuccess(false);
@@ -43,7 +65,9 @@ export default function AddContributionForm({ onSuccess }: Props) {
     const { error } = await supabase.from("contributions").insert([
       {
         amount: numericAmount,
-        date: date || new Date().toISOString().slice(0, 10),
+        date: date
+          ? format(date, "yyyy-MM-dd")
+          : new Date().toISOString().slice(0, 10),
         comment: comment || null,
         user_id: user.id,
       },
@@ -51,11 +75,12 @@ export default function AddContributionForm({ onSuccess }: Props) {
 
     setIsLoading(false);
 
-    if (error) setError(error.message);
-    else {
+    if (error) {
+      setError(error.message);
+    } else {
       setSuccess(true);
       setAmount("");
-      setDate("");
+      setDate(undefined);
       setComment("");
       onSuccess?.();
       setTimeout(() => setSuccess(false), 3000);
@@ -66,19 +91,7 @@ export default function AddContributionForm({ onSuccess }: Props) {
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 transition-colors">
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-          <svg
-            className="w-6 h-6 text-blue-600 dark:text-blue-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-            />
-          </svg>
+          <Plus className="w-6 h-6 text-blue-600 dark:text-blue-400" />
         </div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
           Ajouter un versement
@@ -86,15 +99,13 @@ export default function AddContributionForm({ onSuccess }: Props) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label
-            htmlFor="amount"
-            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-          >
+        {/* Montant */}
+        <div className="space-y-2">
+          <Label htmlFor="amount">
             Montant (€) <span className="text-red-500">*</span>
-          </label>
+          </Label>
           <div className="relative">
-            <input
+            <Input
               id="amount"
               type="number"
               step="0.01"
@@ -103,113 +114,87 @@ export default function AddContributionForm({ onSuccess }: Props) {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               required
-              className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+              className="pr-10"
             />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
               €
             </span>
           </div>
         </div>
 
-        <div>
-          <label
-            htmlFor="date"
-            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-          >
-            Date
-          </label>
-          <input
-            id="date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-          />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {/* Date */}
+        <div className="space-y-2">
+          <Label>Date</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !date && "text-muted-foreground",
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {date ? format(date, "PPP", { locale: fr }) : "Aujourd'hui"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={setDate}
+                locale={fr}
+                autoFocus
+              />
+            </PopoverContent>
+          </Popover>
+          <p className="text-xs text-muted-foreground">
             Par défaut : aujourd'hui
           </p>
         </div>
 
-        <div>
-          <label
-            htmlFor="comment"
-            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-          >
-            Commentaire
-          </label>
-          <textarea
+        {/* Commentaire */}
+        <div className="space-y-2">
+          <Label htmlFor="comment">Commentaire</Label>
+          <Textarea
             id="comment"
             placeholder="Note optionnelle..."
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={3}
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition resize-none"
+            className="resize-none"
           />
         </div>
 
+        {/* Messages d'erreur/succès */}
         {error && (
-          <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
-            <svg
-              className="w-5 h-5 flex-shrink-0"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                clipRule="evenodd"
-              />
-            </svg>
+          <div className="flex items-center gap-2 bg-destructive/10 text-destructive px-4 py-3 rounded-lg text-sm">
+            <XCircle className="w-5 h-5 flex-shrink-0" />
             {error}
           </div>
         )}
 
         {success && (
-          <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-4 py-3 rounded-lg text-sm">
-            <svg
-              className="w-5 h-5 flex-shrink-0"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clipRule="evenodd"
-              />
-            </svg>
+          <div className="flex items-center gap-2 bg-green-500/10 text-green-600 dark:text-green-400 px-4 py-3 rounded-lg text-sm">
+            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
             Versement ajouté avec succès !
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
-        >
+        {/* Submit */}
+        <Button type="submit" disabled={isLoading} className="w-full">
           {isLoading ? (
             <>
-              <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Ajout en cours...
             </>
           ) : (
             <>
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                />
-              </svg>
+              <Plus className="mr-2 h-4 w-4" />
               Ajouter le versement
             </>
           )}
-        </button>
+        </Button>
       </form>
     </div>
   );

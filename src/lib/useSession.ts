@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "./supabase";
+import { createClient } from "@/lib/supabase/client";
 import { Session } from "@supabase/supabase-js";
+
+const supabase = createClient();
 
 export function useSession() {
   const [session, setSession] = useState<Session | null>(null);

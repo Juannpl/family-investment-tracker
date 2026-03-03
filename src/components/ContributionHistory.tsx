@@ -1,8 +1,9 @@
-// components/ContributionHistory.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
+
+const supabase = createClient();
 
 interface Contribution {
   id: string;
@@ -10,6 +11,9 @@ interface Contribution {
   date: string;
   comment: string | null;
   created_at: string;
+  profiles: {
+    name: string;
+  };
 }
 
 interface Props {
@@ -34,12 +38,25 @@ export default function ContributionHistory({ refreshKey }: Props) {
 
       const { data, error } = await supabase
         .from("contributions")
-        .select("*")
-        .eq("user_id", user.id)
+        .select(
+          `
+    id,
+    amount,
+    date,
+    comment,
+    created_at,
+    profiles!inner(
+      name
+    )
+  `,
+        )
         .order("date", { ascending: false });
-
       if (!error && data) {
-        setContributions(data);
+        const transformed = data.map((item: any) => ({
+          ...item,
+          profiles: item.profiles ?? { name: "Utilisateur inconnu" },
+        }));
+        setContributions(transformed);
       }
       setLoading(false);
     };
@@ -114,11 +131,12 @@ export default function ContributionHistory({ refreshKey }: Props) {
               className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
             >
               <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {c.profiles?.name ?? "Utilisateur inconnu"} •{" "}
+                  {formatDate(c.date)}
+                </p>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
                   {formatAmount(c.amount)}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {formatDate(c.date)}
                 </p>
                 {c.comment && (
                   <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-1">

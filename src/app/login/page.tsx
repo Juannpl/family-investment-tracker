@@ -3,32 +3,21 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 import { useSession } from "@/lib/useSession";
+import { useTheme } from "@/lib/useTheme";
+import { createClient } from "@/lib/supabase/client";
+
+const supabase = createClient();
 
 export default function LoginPage() {
   const router = useRouter();
   const { session, loading: sessionLoading } = useSession();
+  const { darkMode, toggleDarkMode } = useTheme();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-
-  useEffect(() => {
-    // Détecte la préférence système
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    const saved = localStorage.getItem("theme");
-    setDarkMode(saved ? saved === "dark" : prefersDark);
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", darkMode);
-    localStorage.setItem("theme", darkMode ? "dark" : "light");
-  }, [darkMode]);
 
   useEffect(() => {
     if (!sessionLoading && session) {
@@ -36,7 +25,7 @@ export default function LoginPage() {
     }
   }, [session, sessionLoading, router]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
@@ -69,7 +58,7 @@ export default function LoginPage() {
     <main className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4 transition-colors">
       {/* Toggle dark mode */}
       <button
-        onClick={() => setDarkMode(!darkMode)}
+        onClick={toggleDarkMode}
         className="absolute top-4 right-4 p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
         aria-label="Toggle theme"
       >
