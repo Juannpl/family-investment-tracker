@@ -15,8 +15,8 @@ import {
 } from "chart.js";
 import { Pie, Bar } from "react-chartjs-2";
 import { Target, TrendingUp, Users, Calendar } from "lucide-react";
+import { useSettings } from "@/lib/SettingsContext";
 
-// Register Chart.js components
 ChartJS.register(
   ArcElement,
   Tooltip,
@@ -27,8 +27,6 @@ ChartJS.register(
 );
 
 const supabase = createClient();
-
-const GOAL_AMOUNT = 50000;
 
 const COLORS = [
   "#3B82F6",
@@ -55,16 +53,17 @@ interface MonthlyData {
 
 export default function DashboardPage() {
   const { session, loading: sessionLoading } = useSession();
+  const { goalAmount, loading: settingsLoading } = useSettings();
   const [totalContributions, setTotalContributions] = useState(0);
   const [contributorData, setContributorData] = useState<ContributorData[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     if (!session) return;
 
     const fetchData = async () => {
-      setLoading(true);
+      setDataLoading(true);
 
       const { data: contributions, error } = await supabase
         .from("contributions")
@@ -80,7 +79,7 @@ export default function DashboardPage() {
         .order("date", { ascending: true });
 
       if (error || !contributions) {
-        setLoading(false);
+        setDataLoading(false);
         return;
       }
 
@@ -145,13 +144,13 @@ export default function DashboardPage() {
       });
       setMonthlyData(monthly);
 
-      setLoading(false);
+      setDataLoading(false);
     };
 
     fetchData();
   }, [session]);
 
-  if (sessionLoading || loading) {
+  if (sessionLoading || settingsLoading || dataLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
@@ -163,11 +162,9 @@ export default function DashboardPage() {
 
   if (!session) return null;
 
-  const progressPercentage = Math.min(
-    (totalContributions / GOAL_AMOUNT) * 100,
-    100,
-  );
-  const remaining = Math.max(GOAL_AMOUNT - totalContributions, 0);
+  const progressPercentage = (totalContributions / goalAmount) * 100;
+
+  const remaining = Math.max(goalAmount - totalContributions, 0);
 
   const formatAmount = (amount: number) =>
     new Intl.NumberFormat("fr-FR", {
@@ -176,7 +173,6 @@ export default function DashboardPage() {
       maximumFractionDigits: 0,
     }).format(amount);
 
-  // Chart.js data for Pie chart
   const pieChartData = {
     labels: contributorData.map((c) => c.name),
     datasets: [
@@ -274,7 +270,7 @@ export default function DashboardPage() {
                   Objectif
                 </p>
                 <p className="text-xl font-bold text-gray-900 dark:text-white">
-                  {formatAmount(GOAL_AMOUNT)}
+                  {formatAmount(goalAmount)}
                 </p>
               </div>
             </div>
@@ -346,7 +342,7 @@ export default function DashboardPage() {
             />
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-            {formatAmount(totalContributions)} sur {formatAmount(GOAL_AMOUNT)}
+            {formatAmount(totalContributions)} sur {formatAmount(goalAmount)}
           </p>
         </div>
 

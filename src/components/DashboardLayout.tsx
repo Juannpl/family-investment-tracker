@@ -14,6 +14,7 @@ import {
   Moon,
   TrendingUp,
   ChevronRight,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +55,8 @@ export default function DashboardLayout({ children }: Props) {
     await supabase.auth.signOut();
     router.push("/login");
   };
+
+  const isProfileActive = pathname === "/profile";
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -106,21 +109,58 @@ export default function DashboardLayout({ children }: Props) {
           })}
         </nav>
 
-        {/* User section */}
+        {/* User section - Cliquable */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <span className="text-blue-600 dark:text-blue-400 font-medium">
+          <Link
+            href="/profile"
+            className={cn(
+              "flex items-center gap-3 p-3 rounded-xl transition-all mb-3",
+              isProfileActive
+                ? "bg-blue-50 dark:bg-blue-900/20"
+                : "hover:bg-gray-100 dark:hover:bg-gray-700",
+            )}
+          >
+            <div
+              className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center",
+                isProfileActive
+                  ? "bg-blue-500"
+                  : "bg-blue-100 dark:bg-blue-900/30",
+              )}
+            >
+              <span
+                className={cn(
+                  "font-medium",
+                  isProfileActive
+                    ? "text-white"
+                    : "text-blue-600 dark:text-blue-400",
+                )}
+              >
                 {session?.user.email?.charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+              <p
+                className={cn(
+                  "text-sm font-medium truncate",
+                  isProfileActive
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-gray-900 dark:text-white",
+                )}
+              >
                 {session?.user.email}
               </p>
-              <p className="text-xs text-gray-500">Membre</p>
+              <p className="text-xs text-gray-500">Voir mon profil</p>
             </div>
-          </div>
+            <ChevronRight
+              className={cn(
+                "w-4 h-4",
+                isProfileActive
+                  ? "text-blue-600 dark:text-blue-400"
+                  : "text-gray-400",
+              )}
+            />
+          </Link>
 
           <div className="flex gap-2">
             <button
@@ -146,7 +186,7 @@ export default function DashboardLayout({ children }: Props) {
 
       {/* Main content */}
       <div className="lg:pl-72">
-        {/* Mobile header - simple, sans burger */}
+        {/* Mobile header */}
         <header className="lg:hidden sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between h-14 px-4">
             <Link href="/dashboard" className="flex items-center gap-2">
@@ -182,7 +222,7 @@ export default function DashboardLayout({ children }: Props) {
       </div>
 
       {/* Mobile bottom navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-30 safe-area-pb">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-30">
         <div className="flex justify-around py-2">
           {navigation.map((item) => {
             const isActive = pathname === item.href;
@@ -191,7 +231,7 @@ export default function DashboardLayout({ children }: Props) {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-1 px-4 py-2 rounded-lg min-w-[72px]",
+                  "flex flex-col items-center gap-1 px-3 py-2 rounded-lg",
                   isActive
                     ? "text-blue-600 dark:text-blue-400"
                     : "text-gray-500 dark:text-gray-400",
@@ -202,6 +242,19 @@ export default function DashboardLayout({ children }: Props) {
               </Link>
             );
           })}
+          {/* Profil dans la nav mobile */}
+          <Link
+            href="/profile"
+            className={cn(
+              "flex flex-col items-center gap-1 px-3 py-2 rounded-lg",
+              isProfileActive
+                ? "text-blue-600 dark:text-blue-400"
+                : "text-gray-500 dark:text-gray-400",
+            )}
+          >
+            <User className="w-5 h-5" />
+            <span className="text-xs font-medium">Profil</span>
+          </Link>
         </div>
       </nav>
     </div>
