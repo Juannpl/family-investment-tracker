@@ -1,140 +1,405 @@
 // app/dashboard/page.tsx
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useSession } from "@/lib/useSession";
-import { useTheme } from "@/lib/useTheme";
-import AddContributionForm from "@/components/AddContributionForm";
-import ContributionHistory from "@/components/ContributionHistory";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useSession } from "@/lib/useSession";
+import DashboardLayout from "@/components/DashboardLayout";
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+} from "chart.js";
+import { Pie, Bar } from "react-chartjs-2";
+import { Target, TrendingUp, Users, Calendar } from "lucide-react";
+
+// Register Chart.js components
+ChartJS.register(
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+);
 
 const supabase = createClient();
 
+const GOAL_AMOUNT = 50000;
+
+const COLORS = [
+  "#3B82F6",
+  "#10B981",
+  "#F59E0B",
+  "#EF4444",
+  "#8B5CF6",
+  "#EC4899",
+  "#06B6D4",
+  "#84CC16",
+];
+
+interface ContributorData {
+  name: string;
+  total: number;
+  percentage: number;
+}
+
+interface MonthlyData {
+  month: string;
+  amount: number;
+  count: number;
+}
+
 export default function DashboardPage() {
-  const router = useRouter();
-  const { session, loading } = useSession();
-  const { darkMode, toggleDarkMode } = useTheme();
-  const [refreshKey, setRefreshKey] = useState(0);
+  const { session, loading: sessionLoading } = useSession();
+  const [totalContributions, setTotalContributions] = useState(0);
+  const [contributorData, setContributorData] = useState<ContributorData[]>([]);
+  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleContributionAdded = () => {
-    setRefreshKey((k) => k + 1);
-  };
+  useEffect(() => {
+    if (!session) return;
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
+    const fetchData = async () => {
+      setLoading(true);
 
-  if (loading) {
+      const { data: contributions, error } = await supabase
+        .from("contributions")
+        .select(
+          `
+          id,
+          amount,
+          date,
+          user_id,
+          profiles!inner(name)
+        `,
+        )
+        .order("date", { ascending: true });
+
+      if (error || !contributions) {
+        setLoading(false);
+        return;
+      }
+
+      const total = contributions.reduce((sum, c) => sum + c.amount, 0);
+      setTotalContributions(total);
+
+      const byContributor: Record<string, number> = {};
+      contributions.forEach((c: any) => {
+        const name = c.profiles?.name || "Inconnu";
+        byContributor[name] = (byContributor[name] || 0) + c.amount;
+      });
+
+      const contributorStats = Object.entries(byContributor).map(
+        ([name, amount]) => ({
+          name,
+          total: amount,
+          percentage: Math.round((amount / total) * 100),
+        }),
+      );
+      setContributorData(contributorStats);
+
+      const monthNames = [
+        "Jan",
+        "Fév",
+        "Mar",
+        "Avr",
+        "Mai",
+        "Juin",
+        "Juil",
+        "Août",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Déc",
+      ];
+      const monthlyStats: Record<string, { amount: number; count: number }> =
+        {};
+
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        monthlyStats[key] = { amount: 0, count: 0 };
+      }
+
+      contributions.forEach((c) => {
+        const date = new Date(c.date);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        if (monthlyStats[key]) {
+          monthlyStats[key].amount += c.amount;
+          monthlyStats[key].count += 1;
+        }
+      });
+
+      const monthly = Object.entries(monthlyStats).map(([key, data]) => {
+        const [year, month] = key.split("-");
+        return {
+          month: `${monthNames[parseInt(month) - 1]} ${year.slice(2)}`,
+          amount: data.amount,
+          count: data.count,
+        };
+      });
+      setMonthlyData(monthly);
+
+      setLoading(false);
+    };
+
+    fetchData();
+  }, [session]);
+
+  if (sessionLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
-      </div>
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+        </div>
+      </DashboardLayout>
     );
   }
 
   if (!session) return null;
 
+  const progressPercentage = Math.min(
+    (totalContributions / GOAL_AMOUNT) * 100,
+    100,
+  );
+  const remaining = Math.max(GOAL_AMOUNT - totalContributions, 0);
+
+  const formatAmount = (amount: number) =>
+    new Intl.NumberFormat("fr-FR", {
+      style: "currency",
+      currency: "EUR",
+      maximumFractionDigits: 0,
+    }).format(amount);
+
+  // Chart.js data for Pie chart
+  const pieChartData = {
+    labels: contributorData.map((c) => c.name),
+    datasets: [
+      {
+        data: contributorData.map((c) => c.total),
+        backgroundColor: COLORS.slice(0, contributorData.length),
+        borderColor: COLORS.slice(0, contributorData.length),
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const pieChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false,
+      },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => {
+            const value = context.raw as number;
+            const percentage = contributorData[context.dataIndex]?.percentage;
+            return `${formatAmount(value)} (${percentage}%)`;
+          },
+        },
+      },
+    },
+    cutout: "60%",
+  };
+
+  // Chart.js data for Bar chart
+  const barChartData = {
+    labels: monthlyData.map((d) => d.month),
+    datasets: [
+      {
+        label: "Montant",
+        data: monthlyData.map((d) => d.amount),
+        backgroundColor: "#3B82F6",
+        borderRadius: 4,
+      },
+    ],
+  };
+
+  const barChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: "bottom" as const,
+      },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => formatAmount(context.raw as number),
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+      },
+      y: {
+        grid: { color: "#e5e7eb" },
+        ticks: {
+          callback: (value: any) => `${value / 1000}k`,
+        },
+      },
+    },
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <svg
-                className="w-8 h-8 text-blue-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                />
-              </svg>
-              <span className="text-lg font-bold text-gray-900 dark:text-white">
-                Family Investment Tracker
-              </span>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600 dark:text-gray-300 hidden sm:block">
-                {session.user.email}
-              </span>
-
-              <button
-                onClick={toggleDarkMode}
-                className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                aria-label="Toggle theme"
-              >
-                {darkMode ? (
-                  <svg
-                    className="w-5 h-5 text-yellow-400"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-5 h-5 text-gray-600"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                  </svg>
-                )}
-              </button>
-
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                  />
-                </svg>
-                <span className="hidden sm:inline">Déconnexion</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Bienvenue sur votre Dashboard
+            Tableau de bord
           </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Gérez vos investissements familiaux
+            Vue d'ensemble de vos investissements familiaux
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <AddContributionForm onSuccess={handleContributionAdded} />
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <Target className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Objectif
+                </p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
+                  {formatAmount(GOAL_AMOUNT)}
+                </p>
+              </div>
+            </div>
+          </div>
 
-          <ContributionHistory refreshKey={refreshKey} />
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Collecté
+                </p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
+                  {formatAmount(totalContributions)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                <Calendar className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Restant
+                </p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
+                  {formatAmount(remaining)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Contributeurs
+                </p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
+                  {contributorData.length}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-      </main>
-    </div>
+
+        {/* Progress Bar */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-900 dark:text-white">
+              Progression vers l'objectif
+            </h3>
+            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              {progressPercentage.toFixed(1)}%
+            </span>
+          </div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500"
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            {formatAmount(totalContributions)} sur {formatAmount(GOAL_AMOUNT)}
+          </p>
+        </div>
+
+        {/* Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Pie Chart */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
+              Répartition par contributeur
+            </h3>
+            {contributorData.length > 0 ? (
+              <div className="h-64">
+                <Pie data={pieChartData} options={pieChartOptions} />
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
+                Aucune donnée disponible
+              </div>
+            )}
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {contributorData.map((item, index) => (
+                <div key={item.name} className="flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                  />
+                  <span className="text-sm text-gray-600 dark:text-gray-300 truncate">
+                    {item.name}: {formatAmount(item.total)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bar Chart */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
+              Évolution mensuelle
+            </h3>
+            {monthlyData.some((d) => d.amount > 0) ? (
+              <div className="h-64">
+                <Bar data={barChartData} options={barChartOptions} />
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
+                Aucune donnée disponible
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
   );
 }

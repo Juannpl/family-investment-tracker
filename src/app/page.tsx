@@ -1,3 +1,4 @@
+// app/page.tsx
 "use client";
 
 import { useEffect } from "react";
@@ -14,5 +15,9 @@ export default function Home() {
     }
   }, [session, loading, router]);
 
-  return <p>Chargement…</p>;
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+    </div>
+  );
 }
