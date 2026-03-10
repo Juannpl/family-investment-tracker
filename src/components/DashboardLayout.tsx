@@ -1,7 +1,5 @@
-// components/DashboardLayout.tsx
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -15,8 +13,6 @@ import {
   Sun,
   Moon,
   TrendingUp,
-  Menu,
-  X,
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -53,7 +49,6 @@ export default function DashboardLayout({ children }: Props) {
   const router = useRouter();
   const { session } = useSession();
   const { darkMode, toggleDarkMode } = useTheme();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -62,35 +57,16 @@ export default function DashboardLayout({ children }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed top-0 left-0 z-50 h-full w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 lg:translate-x-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full",
-        )}
-      >
+      {/* Sidebar - Desktop uniquement */}
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:block lg:w-72 lg:bg-white lg:dark:bg-gray-800 lg:border-r lg:border-gray-200 lg:dark:border-gray-700">
         {/* Logo */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center h-16 px-4 border-b border-gray-200 dark:border-gray-700">
           <Link href="/dashboard" className="flex items-center gap-2">
             <TrendingUp className="w-8 h-8 text-blue-600" />
             <span className="text-lg font-bold text-gray-900 dark:text-white">
               Family Invest
             </span>
           </Link>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
         </div>
 
         {/* Navigation */}
@@ -101,7 +77,6 @@ export default function DashboardLayout({ children }: Props) {
               <Link
                 key={item.name}
                 href={item.href}
-                onClick={() => setSidebarOpen(false)}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-xl transition-all",
                   isActive
@@ -171,16 +146,9 @@ export default function DashboardLayout({ children }: Props) {
 
       {/* Main content */}
       <div className="lg:pl-72">
-        {/* Mobile header */}
+        {/* Mobile header - simple, sans burger */}
         <header className="lg:hidden sticky top-0 z-30 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between h-16 px-4">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <Menu className="w-6 h-6 text-gray-600 dark:text-gray-300" />
-            </button>
-
+          <div className="flex items-center justify-between h-14 px-4">
             <Link href="/dashboard" className="flex items-center gap-2">
               <TrendingUp className="w-6 h-6 text-blue-600" />
               <span className="font-bold text-gray-900 dark:text-white">
@@ -188,25 +156,33 @@ export default function DashboardLayout({ children }: Props) {
               </span>
             </Link>
 
-            <button
-              onClick={toggleDarkMode}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              {darkMode ? (
-                <Sun className="w-5 h-5 text-yellow-400" />
-              ) : (
-                <Moon className="w-5 h-5 text-gray-600" />
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleDarkMode}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                {darkMode ? (
+                  <Sun className="w-5 h-5 text-yellow-400" />
+                ) : (
+                  <Moon className="w-5 h-5 text-gray-600" />
+                )}
+              </button>
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <LogOut className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              </button>
+            </div>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">{children}</main>
       </div>
 
       {/* Mobile bottom navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-30">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-30 safe-area-pb">
         <div className="flex justify-around py-2">
           {navigation.map((item) => {
             const isActive = pathname === item.href;
@@ -215,7 +191,7 @@ export default function DashboardLayout({ children }: Props) {
                 key={item.name}
                 href={item.href}
                 className={cn(
-                  "flex flex-col items-center gap-1 px-4 py-2 rounded-lg",
+                  "flex flex-col items-center gap-1 px-4 py-2 rounded-lg min-w-[72px]",
                   isActive
                     ? "text-blue-600 dark:text-blue-400"
                     : "text-gray-500 dark:text-gray-400",
