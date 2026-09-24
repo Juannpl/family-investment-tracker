@@ -127,7 +127,7 @@ RESEND_API_KEY=votre_cle_resend
 | `NEXT_PUBLIC_SUPABASE_URL` | URL du projet Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clé utilisée par les clients Supabase navigateur et serveur actuels |
 | `NEXT_PUBLIC_SITE_URL` | Adresse de l’application utilisée pour construire le retour d’invitation |
-| `SUPABASE_SERVICE_ROLE_KEY` | Clé privilégiée utilisée uniquement dans les routes serveur d’invitation |
+| `SUPABASE_SERVICE_ROLE_KEY` | Clé privilégiée du client `server-only`, utilisée après vérification du rôle administrateur |
 | `RESEND_API_KEY` | Clé d’envoi des emails via Resend |
 
 Les fichiers `.env*` sont ignorés par Git. Les valeurs préfixées `NEXT_PUBLIC_` sont destinées au navigateur ; les clés privilégiées doivent rester côté serveur.
@@ -152,7 +152,24 @@ npm run dev
 
 Ouvre ensuite **http://localhost:3000**.
 
-Le parcours prévu est : demande d’accès → approbation → email d’invitation → création du mot de passe → tableau de bord. La création du premier administrateur et les règles qui définissent ses droits ne sont pas fournies dans le dépôt.
+Le parcours prévu est : demande d’accès → approbation → email d’invitation → création du mot de passe → tableau de bord. Les droits administratifs sont définis ci-dessous ; aucun compte ne reçoit ces droits automatiquement.
+
+## Administration et mise en production du correctif
+
+La page `/admin` et les quatre opérations API (`GET` / `DELETE /api/admin/users`, `POST /api/admin/invite`, `POST /api/invite-user`) vérifient la session via `auth.getUser()` puis exigent exactement `user.app_metadata.role === "admin"`. Les API renvoient `401` sans session valide et `403` sans ce rôle. Une erreur de vérification refuse également l’accès. Les données `user_metadata`, modifiables par l’utilisateur, ne donnent aucun droit.
+
+Avant le déploiement, attribuer ce rôle uniquement aux comptes administrateurs identifiés, depuis un environnement serveur de confiance utilisant l’API Supabase Admin. Lire les `app_metadata` existantes, puis appeler `auth.admin.updateUserById(id, { app_metadata: { ...existingAppMetadata, role: "admin" } })` pour conserver les autres attributs. Ne jamais exposer cette opération au navigateur, ni promouvoir automatiquement le premier compte. Sans rôle configuré, tous les comptes sont refusés par défaut. Les contrôles serveur relisent le rôle à chaque requête.
+
+La clé privilégiée est isolée dans `src/lib/supabase/admin.ts`, protégé par `server-only`, sans stockage ni rafraîchissement de session. Le client de session conserve la clé publique et les cookies. Les mutations refusent les origines différentes et les requêtes marquées `cross-site`. Si un reverse proxy réécrit l’origine, conserver l’origine publique dans la requête transmise à Next.js.
+
+Pour publier et vérifier le correctif :
+
+1. Configurer le rôle des administrateurs et les variables serveur sur l’hébergeur. `NEXT_PUBLIC_SITE_URL` doit être l’URL HTTPS de production, autorisée dans les redirections Supabase.
+2. Exécuter `npm ci`, `npm test` et `npm run build`, puis déployer cette version et retirer les anciennes versions publiques vulnérables.
+3. Vérifier les quatre opérations API sans session (`401`), avec un membre (`403`) et avec un administrateur. Tester les invitations et suppressions uniquement sur des comptes de test contrôlés.
+4. Examiner les anciens logs et les invitations/comptes créés pendant la période d’exposition. Les nouveaux logs ne contiennent plus les liens d’invitation. Révoquer les accès ou invitations suspects ; remplacer la clé privilégiée si elle a été exposée hors du serveur.
+
+Les contrôles des routes ne remplacent pas les politiques RLS : `access_requests` et `settings` sont aussi accédées directement depuis le navigateur. Vérifier dans Supabase que la lecture/approbation/rejet des demandes et la modification de l’objectif sont réservés aux administrateurs. Les politiques et permissions distantes ne sont pas fournies par ce dépôt et doivent être auditées séparément.
 
 ## 🗄️ Données attendues
 
@@ -228,19 +245,18 @@ family-investment-tracker/
 | --- | --- |
 | `npm run dev` | Démarrer le serveur de développement |
 | `npm run lint` | Exécuter ESLint |
+| `npm test` | Tester les autorisations et les routes administratives |
 | `npm run build` | Construire l’application |
 | `npm start` | Démarrer l’application après compilation |
 
-Aucune suite de tests automatisés n’est actuellement définie dans `package.json`. Le parcours complet dépend d’une configuration Supabase et Resend opérationnelle.
+`npm test` vérifie les routes administratives et leur contrôle d’accès avec Supabase et Resend simulés (aucun email envoyé, aucun utilisateur modifié). Le parcours complet dépend d’une configuration Supabase et Resend opérationnelle.
 
 ## 🚧 État du projet
 
 L’interface et les principaux parcours sont présents. Les éléments suivants restent à consolider avant une utilisation en production :
 
-- **Droits d’administration** : la page `/admin` et les routes d’invitation ne vérifient pas actuellement le rôle de l’appelant. Les routes d’invitation utilisent une clé privilégiée ; elles nécessitent un contrôle d’autorisation côté serveur.
-- **Gestion des utilisateurs** : `/api/admin/users` appelle les méthodes Admin avec le client serveur configuré à partir de la clé publique et de la session. Cette configuration ne fournit pas les privilèges nécessaires aux opérations Admin.
+- **Dépendances de production** : `npm audit --omit=dev` signale également des vulnérabilités sur Next.js 16.1.6 (sévérité maximale critique) et Resend. Leur mise à jour reste à traiter ; le correctif des autorisations ne les résout pas.
 - **Base reproductible** : ajouter les migrations, les politiques RLS et le mécanisme de création des profils permettrait de préparer un nouvel environnement depuis le dépôt.
-- **Invitations** : le lien d’invitation est actuellement écrit dans les logs serveur ; cette journalisation doit être retirée.
 - **Regroupement des contributeurs** : les graphiques regroupent les contributions par nom affiché. Deux membres portant le même nom sont donc fusionnés dans cette vue.
 - **Export CSV** : l’échappement des guillemets et le traitement des cellules interprétables comme formules restent à renforcer.
 
